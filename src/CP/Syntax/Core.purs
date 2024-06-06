@@ -57,6 +57,25 @@ instance Show Ty where
 
 derive instance Eq Ty
 
+-- Casts --
+data Cst = CstId Ty
+         | CstFold Ty
+         | CstUnfold Ty
+         | CsArrow Cst Cst
+         | CsAnd Cst Cst
+         | CsRcd Label Cst Boolean
+         | CsAll Name Ty Cst
+
+instance Show Cst where
+  show (CstId t) = "id @" <> show t
+  show (CstFold t) = "fold @" <> show t
+  show (CstUnfold t) = "unfold @" <> show t
+  show (CsArrow c1 c2) = parens $ show c1 <+> "->" <+> show c2
+  show (CsAnd c1 c2) = parens $ show c1 <+> "," <+> show c2
+  show (CsRcd l c opt) = braces $ l <> (if opt then "?" else "") <+> ":" <+> show c
+  show (CsAll a t c) = parens $ "forall" <+> a <+> "*" <+> show t <> "." <+> show c
+
+
 -- Terms --
 
 data Tm = TmInt Int
@@ -97,6 +116,11 @@ data Tm = TmInt Int
         | TmHAbs (Tm -> Tm) Ty Ty Boolean
         | TmHFix (Tm -> Tm) Ty
         | TmHTAbs (Ty -> Tm) Ty (Ty -> Ty) Boolean
+
+        -- Added for casts
+        | TmCst Cst Tm
+
+
 
 instance Show Tm where
   show (TmInt i)    = show i
@@ -250,7 +274,21 @@ tmSubst x v (TmAssign e1 e2) = TmAssign (tmSubst x v e1) (tmSubst x v e2)
 tmSubst x v (TmToString e) = TmToString (tmSubst x v e)
 tmSubst x v (TmArray t arr) = TmArray t (tmSubst x v <$> arr)
 tmSubst x v (TmMain e) = TmMain (tmSubst x v e)
+tmSubst x v (TmCst c e) = TmCst c (tmSubst x v e) -- new for casts
 tmSubst _ _ e = e
+
+
+cstTSubst :: Name -> Ty -> Cst -> Cst
+cstTSubst a s (CstId t) = CstId (tySubst a s t)
+cstTSubst a s (CstFold t) = CstFold (tySubst a s t)
+cstTSubst a s (CstUnfold t) = CstUnfold (tySubst a s t)
+cstTSubst a s (CsArrow c1 c2) = CsArrow (cstTSubst a s c1) (cstTSubst a s c2)
+cstTSubst a s (CsAnd c1 c2) = CsAnd (cstTSubst a s c1) (cstTSubst a s c2)
+cstTSubst a s (CsRcd l c opt) = CsRcd l (cstTSubst a s c) opt
+cstTSubst a s (CsAll a' td c) =
+  if a == a' then CsAll a' (tySubst a s td) c
+  else CsAll a' (tySubst a s td) (cstTSubst a s c)
+
 
 tmTSubst :: Name -> Ty -> Tm -> Tm
 tmTSubst a s (TmUnary op e) = TmUnary op (tmTSubst a s e)
@@ -281,6 +319,7 @@ tmTSubst a s (TmAssign e1 e2) = TmAssign (tmTSubst a s e1) (tmTSubst a s e2)
 tmTSubst a s (TmToString e) = TmToString (tmTSubst a s e)
 tmTSubst a s (TmArray t arr) = TmArray (tySubst a s t) (tmTSubst a s <$> arr)
 tmTSubst a s (TmMain e) = TmMain (tmTSubst a s e)
+tmTSubst a s (TmCst c e) = TmCst (cstTSubst c) (tmTSubst a s e) -- new for casts
 tmTSubst _ _ e = e
 
 -- Environment --
