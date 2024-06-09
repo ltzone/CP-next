@@ -61,19 +61,19 @@ derive instance Eq Ty
 data Cst = CstId Ty
          | CstFold Ty
          | CstUnfold Ty
-         | CsArrow Cst Cst
-         | CsAnd Cst Cst
-         | CsRcd Label Cst Boolean
-         | CsAll Name Ty Cst
+         | CstArrow Cst Cst
+         | CstAnd Cst Cst
+         | CstRcd Label Cst Boolean
+         | CstAll Name Ty Cst
 
 instance Show Cst where
   show (CstId t) = "id @" <> show t
   show (CstFold t) = "fold @" <> show t
   show (CstUnfold t) = "unfold @" <> show t
-  show (CsArrow c1 c2) = parens $ show c1 <+> "->" <+> show c2
-  show (CsAnd c1 c2) = parens $ show c1 <+> "," <+> show c2
-  show (CsRcd l c opt) = braces $ l <> (if opt then "?" else "") <+> ":" <+> show c
-  show (CsAll a t c) = parens $ "forall" <+> a <+> "*" <+> show t <> "." <+> show c
+  show (CstArrow c1 c2) = parens $ show c1 <+> "->" <+> show c2
+  show (CstAnd c1 c2) = parens $ show c1 <+> "," <+> show c2
+  show (CstRcd l c opt) = braces $ l <> (if opt then "?" else "") <+> ":" <+> show c
+  show (CstAll a t c) = parens $ "forall" <+> a <+> "*" <+> show t <> "." <+> show c
 
 
 -- Terms --
@@ -164,6 +164,7 @@ instance Show Tm where
     "HOAS" <+> show targ <+> "→" <+> show tret
   show (TmHFix _fix t) = angles $ "HOAS fix" <+> show t
   show (TmHTAbs _tabs td _tf _refined) = angles $ "HOAS ∀*" <+> show td
+  show (TmCst c e) = "cast " <+> brackets (show c) <+> show e
 
 -- HOAS --
 
@@ -282,12 +283,12 @@ cstTSubst :: Name -> Ty -> Cst -> Cst
 cstTSubst a s (CstId t) = CstId (tySubst a s t)
 cstTSubst a s (CstFold t) = CstFold (tySubst a s t)
 cstTSubst a s (CstUnfold t) = CstUnfold (tySubst a s t)
-cstTSubst a s (CsArrow c1 c2) = CsArrow (cstTSubst a s c1) (cstTSubst a s c2)
-cstTSubst a s (CsAnd c1 c2) = CsAnd (cstTSubst a s c1) (cstTSubst a s c2)
-cstTSubst a s (CsRcd l c opt) = CsRcd l (cstTSubst a s c) opt
-cstTSubst a s (CsAll a' td c) =
-  if a == a' then CsAll a' (tySubst a s td) c
-  else CsAll a' (tySubst a s td) (cstTSubst a s c)
+cstTSubst a s (CstArrow c1 c2) = CstArrow (cstTSubst a s c1) (cstTSubst a s c2)
+cstTSubst a s (CstAnd c1 c2) = CstAnd (cstTSubst a s c1) (cstTSubst a s c2)
+cstTSubst a s (CstRcd l c opt) = CstRcd l (cstTSubst a s c) opt
+cstTSubst a s (CstAll a' td c) =
+  if a == a' then CstAll a' (tySubst a s td) c
+  else CstAll a' (tySubst a s td) (cstTSubst a s c)
 
 
 tmTSubst :: Name -> Ty -> Tm -> Tm
@@ -319,7 +320,7 @@ tmTSubst a s (TmAssign e1 e2) = TmAssign (tmTSubst a s e1) (tmTSubst a s e2)
 tmTSubst a s (TmToString e) = TmToString (tmTSubst a s e)
 tmTSubst a s (TmArray t arr) = TmArray (tySubst a s t) (tmTSubst a s <$> arr)
 tmTSubst a s (TmMain e) = TmMain (tmTSubst a s e)
-tmTSubst a s (TmCst c e) = TmCst (cstTSubst c) (tmTSubst a s e) -- new for casts
+tmTSubst a s (TmCst c e) = TmCst (cstTSubst a s c) (tmTSubst a s e) -- new for casts
 tmTSubst _ _ e = e
 
 -- Environment --

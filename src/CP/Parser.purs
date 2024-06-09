@@ -1,4 +1,89 @@
-module Language.CP.Parser where
+module Language.CP.Parser
+  ( SParser
+  , absTy
+  , aexpr
+  , angles
+  , aty
+  , bangexpr
+  , braces
+  , bracesWithoutTrailingSpace
+  , brackets
+  , bracketsWithoutConsumingSpace
+  , bty
+  , castArg
+  , caste
+  , castop
+  , colonexpr
+  , cty
+  , def
+  , defaultPattern
+  , document
+  , dotexpr
+  , endBySemi
+  , excludexpr
+  , expr
+  , fexpr
+  , fixpoint
+  , fold
+  , foldcast
+  , forallTy
+  , fromIntOrNumber
+  , idcast
+  , ident
+  , identifier
+  , ifThenElse
+  , interface
+  , lambdaAbs
+  , lang
+  , langDef
+  , letIn
+  , letrec
+  , lexeme
+  , lexpr
+  , lowerIdentifier
+  , methodPattern
+  , muTy
+  , naturalOrFloat
+  , new
+  , open
+  , operator
+  , operators
+  , opexpr
+  , parens
+  , parensWithoutTrailingSpace
+  , program
+  , recordField
+  , recordLit
+  , recordTy
+  , recordUpdate
+  , ref
+  , refTy
+  , renamexpr
+  , reserved
+  , reservedOp
+  , selfAnno
+  , sepEndBySemi
+  , sepEndBySemi1
+  , stringLiteral
+  , symbol
+  , tmDef
+  , tmParams
+  , toString
+  , toperators
+  , trait
+  , traitTy
+  , ty
+  , tyArg
+  , tyDef
+  , tyLambdaAbs
+  , tyParams
+  , underscore
+  , unfold
+  , unfoldcast
+  , upperIdentifier
+  , whiteSpace
+  )
+  where
 
 import Prelude hiding (between)
 
@@ -14,7 +99,7 @@ import Data.String.CodeUnits as SCU
 import Data.String.Regex.Flags (noFlags)
 import Data.Tuple (Tuple(..))
 import Language.CP.Syntax.Common (ArithOp(..), BinOp(..), CompOp(..), LogicOp(..), UnOp(..))
-import Language.CP.Syntax.Source (Bias(..), Def(..), MethodPattern(..), Prog(..), RcdField(..), RcdTy(..), SelfAnno, Tm(..), TmParam(..), Ty(..), TyParam, TypeDef(..))
+import Language.CP.Syntax.Source (Bias(..), Def(..), MethodPattern(..), Prog(..), RcdField(..), RcdTy(..), SelfAnno, Tm(..), TmParam(..), Ty(..), TyParam, TypeDef(..), Cst(..), RcdCst(..))
 import Language.CP.Util (foldl1, isCapitalized)
 import Parsing (Parser, fail, position)
 import Parsing.Combinators (between, choice, endBy, option, sepEndBy, sepEndBy1, try)
@@ -90,7 +175,7 @@ opexpr e = buildExprParser operators $ lexpr e
 lexpr :: SParser Tm -> SParser Tm
 lexpr e = fexpr e <|> lambdaAbs <|> tyLambdaAbs <|> trait <|> new <|>
           ifThenElse <|> letIn <|> letrec <|> open <|> toString <|>
-          fixpoint <|> fold <|> unfold <|> ref
+          fixpoint <|> fold <|> unfold <|> ref <|> caste
 
 fexpr :: SParser Tm -> SParser Tm
 fexpr e = do
@@ -243,6 +328,74 @@ unfold = do
   t <- tyArg
   e <- dotexpr expr
   pure $ TmUnfold t e
+
+
+
+idcast :: SParser Cst
+idcast = do
+  reserved "id"
+  t <- tyArg
+  pure $ CstId t
+
+unfoldcast :: SParser Cst
+unfoldcast = do
+  reserved "unfold"
+  t <- tyArg
+  pure $ CstUnfold t
+
+foldcast :: SParser Cst
+foldcast = do
+  reserved "fold"
+  t <- tyArg
+  pure $ CstFold t
+
+rcdcast :: SParser Cst -> SParser Cst
+rcdcast p = braces $ CstRcd <$> sepEndBySemi do
+  l <- identifier
+  opt <- isJust <$> optional (symbol "?")
+  symbol ":"
+  t <- castop p
+  pure $ RcdCs l t opt
+
+allcast :: SParser Cst -> SParser Cst
+allcast p = do
+  reserved "forall"
+  xs <- some (tyParams true)
+  symbol "."
+  c <- castop p
+  pure $ CstAll xs c
+
+
+castop :: SParser Cst -> SParser Cst
+castop p = choice [
+  idcast,
+  unfoldcast,
+  foldcast,
+  rcdcast p,
+  allcast p,
+  parens p
+]
+
+
+coperators :: OperatorTable Identity String Cst
+coperators = [ [ Infix (reservedOp ","  $> CstAnd) AssocLeft  ]
+             , [ Infix (reservedOp "->" $> CstArrow) AssocRight ]
+             ]
+
+
+cst :: SParser Cst
+cst = fix \c -> buildExprParser coperators $ castop c
+
+castArg :: SParser Cst
+castArg = brackets cst
+
+caste :: SParser Tm
+caste = do
+  reserved "cast"
+  c <- castArg
+  e <- dotexpr expr
+  pure $ TmCst c e
+
 
 ref :: SParser Tm
 ref = do
@@ -494,6 +647,7 @@ langDef = LanguageDef (unGenLanguageDef haskellStyle) { reservedNames =
   , "let", "letrec", "open", "in", "with", "ref"
   , "type", "interface", "extends", "forall", "mu"
   , "Int", "Double", "String", "Bool", "Top", "Bot", "Trait", "Ref"
+  , "cast", "id"
   ]
 }
 

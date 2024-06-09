@@ -99,6 +99,7 @@ lexpr
     |   fold
     |   unfold
     |   ref
+    |   cast
     ;
 
 lambda
@@ -149,6 +150,11 @@ fold
 unfold
     :   Unfold typeArg dotexpr
     ;
+
+cast
+    :   Cast castArg  dotexpr
+    ;
+
 
 ref
     :   Ref dotexpr
@@ -216,6 +222,22 @@ recordUpdate
 typeArg
     :   At btype
     ;
+
+castArg
+    :   BracketOpen  castop  BraceClose
+    ;
+
+castop
+    :  IdCast typeArg
+    :  castop  Arrow  castop
+    :  castop  Merge  castop
+    :  Unfold  typeArg
+    :  Fold  typeArg  
+    :  BraceOpen labelDecl Colon castop BraceClose
+    :  BraceOpen castop BraceClose
+    :  ForAll typeParam+ Dot castop
+    ;
+
 
 typeParam
     :   typeNameDecl

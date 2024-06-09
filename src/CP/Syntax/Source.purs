@@ -1,4 +1,34 @@
-module Language.CP.Syntax.Source where
+module Language.CP.Syntax.Source
+  ( Bias(..)
+  , Cst(..)
+  , Def(..)
+  , DefaultFields
+  , MethodPattern(..)
+  , Prog(..)
+  , RcdCst(..)
+  , RcdCstList
+  , RcdField(..)
+  , RcdTy(..)
+  , RcdTyList
+  , SelfAnno
+  , Tm(..)
+  , TmParam(..)
+  , TmParamList
+  , Ty(..)
+  , TyParam
+  , TyParamList
+  , TypeDef(..)
+  , intercalate'
+  , showDoc
+  , showMaybe
+  , showRcdTm
+  , showRcdTy
+  , showSelfAnno
+  , showTmParams
+  , showTyParams
+  , tySubst
+  )
+  where
 
 import Prelude
 
@@ -64,6 +94,40 @@ instance Show Ty where
 
 derive instance Eq Ty
 
+
+-- Casts --
+
+data Cst = CstId Ty
+         | CstFold Ty
+         | CstUnfold Ty
+         | CstArrow Cst Cst
+         | CstAnd Cst Cst
+         | CstRcd RcdCstList
+         | CstAll TyParamList Cst
+
+data RcdCst = RcdCs Label Cst Boolean
+
+type RcdCstList = List RcdCst
+
+instance Show RcdCst where
+  show (RcdCs l c opt) = l <> (if opt then "?" else "") <+> ":" <+> show c
+
+instance Show Cst where
+  show (CstId t) = "id @" <> show t
+  show (CstFold t) = "fold @" <> show t
+  show (CstUnfold t) = "unfold @" <> show t
+  show (CstArrow c1 c2) = parens $ show c1 <+> "->" <+> show c2
+  show (CstAnd c1 c2) = parens $ show c1 <+> "," <+> show c2
+  show (CstRcd cx) = braces $ intercalate "; " (show <$> cx)
+  show (CstAll ts c) = parens $ "forall" <+> show ts <> "." <+> show c
+
+
+
+
+
+
+
+
 -- Terms --
 
 data Tm = TmInt Int
@@ -107,6 +171,10 @@ data Tm = TmInt Int
         | TmArray (Array Tm)
         | TmDoc Tm
         | TmPos Position Tm
+        -- Added for casts
+        | TmCst Cst Tm
+
+
 
 data Bias = Neutral | Leftist | Rightist
 derive instance Eq Bias
@@ -172,6 +240,7 @@ instance Show Tm where
   show (TmArray arr) = brackets $ intercalate "; " (show <$> arr)
   show (TmDoc e) = show e
   show (TmPos _pos e) = show e
+  show (TmCst c e) = "cast " <+> brackets (show c) <+> show e
 
 showDoc :: Tm -> String
 showDoc (TmDoc e) = "`" <> showDoc e <> "`"
@@ -212,6 +281,7 @@ instance Show Prog where
   show (Prog defs e) = intercalate' "\n" (map show defs) <> "\n" <> show e
 
 -- Substitution --
+
 
 -- TODO: capture-avoiding
 tySubst :: Name -> Ty -> Ty -> Ty

@@ -172,6 +172,15 @@ Undefined_
     ;
 
 
+Cast
+    :   'cast'
+    ;
+
+IdCast
+    :   'id'
+    ;
+
+
 /* IDENTIFIERS */
 
 fragment
